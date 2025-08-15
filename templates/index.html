@@ -7,6 +7,8 @@
     <title>Unified Inbox - Next Gen Communication Hub</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
     <style>
         :root {
             --primary: #6c63ff;
@@ -58,8 +60,8 @@
         }
 
         .preloader-logo {
-            width: 80px;
-            height: 80px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
             background: white;
             display: flex;
@@ -69,9 +71,10 @@
             animation: pulse 1.5s infinite;
         }
 
-        .preloader-logo i {
-            font-size: 36px;
-            color: var(--primary);
+        .preloader-logo img {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
         }
 
         .preloader-text {
@@ -145,17 +148,10 @@
             gap: 12px;
         }
 
-        .logo-icon {
+        .logo img {
             width: 40px;
             height: 40px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 700;
-            font-size: 18px;
+            object-fit: contain;
         }
 
         .logo-text {
@@ -175,10 +171,26 @@
             font-weight: 500;
             font-size: 16px;
             transition: color 0.2s;
+            position: relative;
         }
 
         .nav-links a:hover {
             color: var(--primary);
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -4px;
+            left: 0;
+            background-color: var(--primary);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
         }
 
         .header-actions {
@@ -271,6 +283,11 @@
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.03);
             backdrop-filter: blur(5px);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-item:hover {
+            transform: translateY(-5px);
         }
 
         .feature-icon {
@@ -507,6 +524,11 @@
             font-size: 14px;
             font-weight: 500;
             display: inline-block;
+            transition: transform 0.3s ease;
+        }
+
+        .tech-badge:hover {
+            transform: scale(1.05);
         }
 
         /* Features Section */
@@ -671,6 +693,12 @@
             justify-content: center;
         }
 
+        .footer-logo img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+        }
+
         .footer-desc {
             color: #6b7280;
             line-height: 1.6;
@@ -772,6 +800,16 @@
                 font-size: 28px;
                 margin-bottom: 40px;
             }
+
+            .preloader-logo {
+                width: 80px;
+                height: 80px;
+            }
+
+            .preloader-logo img {
+                width: 60px;
+                height: 60px;
+            }
         }
     </style>
 </head>
@@ -780,7 +818,7 @@
     <!-- Preloader -->
     <div id="preloader">
         <div class="preloader-logo">
-            <i class="fas fa-comments"></i>
+            <img src="/static/logo.png" alt="Unified Inbox Logo">
         </div>
         <div class="progress-bar">
             <div class="progress" id="progress"></div>
@@ -793,7 +831,7 @@
         <div class="container">
             <div class="header-content">
                 <div class="logo">
-                    <div class="logo-icon">U</div>
+                    <img src="/static/logo.png" alt="Unified Inbox Logo">
                     <div class="logo-text">Unified Inbox</div>
                 </div>
 
@@ -805,8 +843,7 @@
                 </nav>
 
                 <div class="header-actions">
-                    <!-- Added onclick handler to redirect -->
-                    <button class="btn btn-primary" onclick="window.location.href='dashboard.html'">
+                    <button class="btn btn-primary" onclick="window.location.href='/dashboard'">
                         Get Started
                     </button>
                 </div>
@@ -862,11 +899,11 @@
                             <label>
                                 <input type="checkbox">
                                 Remember me
-                            </label>
+                            </div>
                             <a href="#">Forgot password?</a>
                         </div>
 
-                        <button class="btn btn-primary" style="width: 100%">Sign In</button>
+                        <button class="btn btn-primary" style="width: 100%;">Sign In</button>
 
                         <div style="text-align: center; margin-top: 24px; color: #6b7280; font-size: 14px;">
                             Or continue with
@@ -1072,7 +1109,7 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-logo">
-                    <div class="logo-icon">U</div>
+                    <img src="/static/logo.png" alt="Unified Inbox Logo">
                     <div class="logo-text">Unified Inbox</div>
                 </div>
                 <p class="footer-desc">
@@ -1101,8 +1138,9 @@
     </footer>
 
     <script>
-        // Preloader
+        // GSAP Animations
         document.addEventListener('DOMContentLoaded', function () {
+            // Preloader
             const preloader = document.getElementById('preloader');
             const progress = document.getElementById('progress');
             const containers = document.querySelectorAll('.container');
@@ -1115,13 +1153,18 @@
 
                 if (width >= 100) {
                     clearInterval(interval);
-                    setTimeout(() => {
-                        preloader.style.opacity = '0';
-                        setTimeout(() => {
+                    gsap.to(preloader, {
+                        opacity: 0,
+                        duration: 0.5,
+                        onComplete: () => {
                             preloader.style.display = 'none';
                             containers.forEach(c => c.style.opacity = '1');
-                        }, 500);
-                    }, 300);
+                            // Initial animations after preloader
+                            gsap.from('.header-content', { y: -50, opacity: 0, duration: 1, ease: 'power3.out' });
+                            gsap.from('.hero-text', { x: -100, opacity: 0, duration: 1, delay: 0.2, ease: 'power3.out' });
+                            gsap.from('.hero-image', { x: 100, opacity: 0, duration: 1, delay: 0.4, ease: 'power3.out' });
+                        }
+                    });
                 }
             }, 100);
 
@@ -1129,7 +1172,6 @@
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
                 anchor.addEventListener('click', function (e) {
                     e.preventDefault();
-
                     const target = document.querySelector(this.getAttribute('href'));
                     if (target) {
                         window.scrollTo({
@@ -1138,6 +1180,73 @@
                         });
                     }
                 });
+            });
+
+            // Scroll-triggered animations
+            gsap.utils.toArray('.section-title').forEach(title => {
+                gsap.from(title, {
+                    scrollTrigger: {
+                        trigger: title,
+                        start: 'top 80%',
+                    },
+                    y: 50,
+                    opacity: 0,
+                    duration: 1,
+                    ease: 'power3.out'
+                });
+            });
+
+            gsap.utils.toArray('.feature-card').forEach((card, index) => {
+                gsap.from(card, {
+                    scrollTrigger: {
+                        trigger: card,
+                        start: 'top 80%',
+                    },
+                    y: 50,
+                    opacity: 0,
+                    duration: 1,
+                    delay: index * 0.1,
+                    ease: 'power3.out'
+                });
+            });
+
+            gsap.utils.toArray('.pricing-card').forEach((card, index) => {
+                gsap.from(card, {
+                    scrollTrigger: {
+                        trigger: card,
+                        start: 'top 80%',
+                    },
+                    y: 50,
+                    opacity: 0,
+                    duration: 1,
+                    delay: index * 0.1,
+                    ease: 'power3.out'
+                });
+            });
+
+            gsap.utils.toArray('.team-card').forEach((card, index) => {
+                gsap.from(card, {
+                    scrollTrigger: {
+                        trigger: card,
+                        start: 'top 80%',
+                    },
+                    y: 50,
+                    opacity: 0,
+                    duration: 1,
+                    delay: index * 0.1,
+                    ease: 'power3.out'
+                });
+            });
+
+            gsap.from('.footer-content', {
+                scrollTrigger: {
+                    trigger: '.footer-content',
+                    start: 'top 80%',
+                },
+                y: 50,
+                opacity: 0,
+                duration: 1,
+                ease: 'power3.out'
             });
         });
     </script>
