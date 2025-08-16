@@ -324,7 +324,7 @@
         }
 
         .hero-image {
-            background: rgba(255, 255, 255, 0.85);
+            background: linear-gradient(135deg, #ffffff, #f8f9fc);
             border-radius: 20px;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08);
             padding: 40px;
@@ -358,7 +358,7 @@
         }
 
         .form-title {
-            font-size: 28px;
+            font-size: 32px;
             font-weight: 700;
             text-align: center;
             margin-bottom: 30px;
@@ -366,15 +366,16 @@
         }
 
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
 
         .form-label {
             display: block;
-            font-size: 14px;
-            font-weight: 500;
+            font-size: 16px;
+            font-weight: 600;
             margin-bottom: 8px;
-            color: #4b5563;
+            color: var(--dark-gray);
+            text-align: left;
         }
 
         .input-with-icon {
@@ -386,22 +387,23 @@
             left: 16px;
             top: 50%;
             transform: translateY(-50%);
-            color: #9ca3af;
+            color: var(--primary);
+            font-size: 18px;
         }
 
         .form-input {
             width: 100%;
-            padding: 14px 16px 14px 48px;
+            padding: 16px 16px 16px 50px;
             border: 1px solid #d1d5db;
-            border-radius: 10px;
-            font-size: 15px;
+            border-radius: 12px;
+            font-size: 16px;
             transition: all 0.3s;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
         }
 
         .form-input:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+            box-shadow: 0 0 0 4px rgba(108, 99, 255, 0.15);
             outline: none;
         }
 
@@ -431,6 +433,22 @@
         .form-options a:hover {
             text-decoration: underline;
             color: var(--primary-dark);
+        }
+
+        .hero-image .btn-primary {
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            box-shadow: 0 6px 12px rgba(108, 99, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .hero-image .btn-primary:hover {
+            transform: translateY(-2px) scale(1.03);
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            box-shadow: 0 8px 16px rgba(108, 99, 255, 0.3);
         }
 
         /* Enhanced Modal */
@@ -1080,12 +1098,12 @@
 
                 <div class="hero-image">
                     <h2 class="form-title">Sign In to Dashboard</h2>
-                    <form>
+                    <form id="heroLoginForm">
                         <div class="form-group">
                             <label class="form-label">Email Address</label>
                             <div class="input-with-icon">
                                 <i class="fas fa-envelope input-icon"></i>
-                                <input type="email" class="form-input" placeholder="you@company.com">
+                                <input type="email" class="form-input" id="heroEmail" placeholder="you@company.com" required>
                             </div>
                         </div>
 
@@ -1093,35 +1111,32 @@
                             <label class="form-label">Password</label>
                             <div class="input-with-icon">
                                 <i class="fas fa-lock input-icon"></i>
-                                <input type="password" class="form-input" placeholder="Enter your password">
+                                <input type="password" class="form-input" id="heroPassword" placeholder="Enter your password" required>
                             </div>
                         </div>
 
                         <div class="form-options">
                             <label>
-                                <input type="checkbox">
+                                <input type="checkbox" id="rememberMe">
                                 Remember me
                             </label>
                             <a href="#">Forgot password?</a>
                         </div>
 
-                        <button class="btn btn-primary" style="width: 100%;">Sign In</button>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">Sign In</button>
 
                         <div style="text-align: center; margin-top: 24px; color: #6b7280; font-size: 14px;">
                             Or continue with
                         </div>
 
                         <div style="display: flex; gap: 12px; margin-top: 16px;">
-                            <button
-                                style="flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer;">
+                            <button type="button" class="social-btn" style="flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer;">
                                 <i class="fab fa-google" style="color: #DB4437;"></i>
                             </button>
-                            <button
-                                style="flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer;">
+                            <button type="button" class="social-btn" style="flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer;">
                                 <i class="fab fa-microsoft" style="color: #0078d7;"></i>
                             </button>
-                            <button
-                                style="flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer;">
+                            <button type="button" class="social-btn" style="flex: 1; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; cursor: pointer;">
                                 <i class="fab fa-apple" style="color: #000;"></i>
                             </button>
                         </div>
@@ -1251,23 +1266,7 @@
             <h2 class="section-title">Meet Our <span>Development Team</span></h2>
 
             <div class="team-container">
-                <div class="team-card">
-                    <div class="team-icon" style="background: linear-gradient(135deg, #6c63ff, #8a84ff);">
-                        <i class="fas fa-code"></i>
-                    </div>
-                    <h3 class="team-name">Somya Sharma</h3>
-                    <div class="team-role">Frontend Developer</div>
-                    <p class="team-desc">Crafted the entire frontend experience with modern design principles and
-                        seamless animations. Integrated APIs using HTML, CSS, JavaScript, and GSAP.</p>
-                    <div class="team-contribution">
-                        <span class="tech-badge">HTML</span>
-                        <span class="tech-badge">CSS</span>
-                        <span class="tech-badge">JavaScript</span>
-                        <span class="tech-badge">Tailwind</span>
-                        <span class="tech-badge">GSAP</span>
-                        <span class="tech-badge">API Integration</span>
-                    </div>
-                </div>
+                
 
                 <div class="team-card">
                     <div class="team-icon" style="background: linear-gradient(135deg, #0ea5e9, #38bdf8);">
@@ -1283,6 +1282,24 @@
                         <span class="tech-badge">API Design</span>
                         <span class="tech-badge">System Architecture</span>
                         <span class="tech-badge">Concept Development</span>
+                    </div>
+                </div>
+
+                <div class="team-card">
+                    <div class="team-icon" style="background: linear-gradient(135deg, #6c63ff, #8a84ff);">
+                        <i class="fas fa-code"></i>
+                    </div>
+                    <h3 class="team-name">Somya Sharma</h3>
+                    <div class="team-role">Frontend Developer</div>
+                    <p class="team-desc">Crafted the entire frontend experience with modern design principles and
+                        seamless animations. Integrated APIs using HTML, CSS, JavaScript, and GSAP.</p>
+                    <div class="team-contribution">
+                        <span class="tech-badge">HTML</span>
+                        <span class="tech-badge">CSS</span>
+                        <span class="tech-badge">JavaScript</span>
+                        <span class="tech-badge">Tailwind</span>
+                        <span class="tech-badge">GSAP</span>
+                        <span class="tech-badge">API Integration</span>
                     </div>
                 </div>
 
@@ -1347,7 +1364,6 @@
             const progress = document.getElementById('progress');
             const containers = document.querySelectorAll('.container');
 
-            // Simulate loading progress
             let width = 0;
             const interval = setInterval(() => {
                 width += 5;
@@ -1361,7 +1377,6 @@
                         onComplete: () => {
                             preloader.style.display = 'none';
                             containers.forEach(c => c.style.opacity = '1');
-                            // Initial animations after preloader
                             gsap.from('.header-content', { y: -50, opacity: 0, duration: 1, ease: 'power3.out' });
                             gsap.from('.hero-text', { x: -100, opacity: 0, duration: 1, delay: 0.2, ease: 'power3.out' });
                             gsap.from('.hero-image', { x: 100, opacity: 0, duration: 1, delay: 0.4, ease: 'power3.out' });
@@ -1387,68 +1402,35 @@
             // Scroll-triggered animations
             gsap.utils.toArray('.section-title').forEach(title => {
                 gsap.from(title, {
-                    scrollTrigger: {
-                        trigger: title,
-                        start: 'top 80%',
-                    },
-                    y: 50,
-                    opacity: 0,
-                    duration: 1,
-                    ease: 'power3.out'
+                    scrollTrigger: { trigger: title, start: 'top 80%' },
+                    y: 50, opacity: 0, duration: 1, ease: 'power3.out'
                 });
             });
 
             gsap.utils.toArray('.feature-card').forEach((card, index) => {
                 gsap.from(card, {
-                    scrollTrigger: {
-                        trigger: card,
-                        start: 'top 80%',
-                    },
-                    y: 50,
-                    opacity: 0,
-                    duration: 1,
-                    delay: index * 0.1,
-                    ease: 'power3.out'
+                    scrollTrigger: { trigger: card, start: 'top 80%' },
+                    y: 50, opacity: 0, duration: 1, delay: index * 0.1, ease: 'power3.out'
                 });
             });
 
             gsap.utils.toArray('.pricing-card').forEach((card, index) => {
                 gsap.from(card, {
-                    scrollTrigger: {
-                        trigger: card,
-                        start: 'top 80%',
-                    },
-                    y: 50,
-                    opacity: 0,
-                    duration: 1,
-                    delay: index * 0.1,
-                    ease: 'power3.out'
+                    scrollTrigger: { trigger: card, start: 'top 80%' },
+                    y: 50, opacity: 0, duration: 1, delay: index * 0.1, ease: 'power3.out'
                 });
             });
 
             gsap.utils.toArray('.team-card').forEach((card, index) => {
                 gsap.from(card, {
-                    scrollTrigger: {
-                        trigger: card,
-                        start: 'top 80%',
-                    },
-                    y: 50,
-                    opacity: 0,
-                    duration: 1,
-                    delay: index * 0.1,
-                    ease: 'power3.out'
+                    scrollTrigger: { trigger: card, start: 'top 80%' },
+                    y: 50, opacity: 0, duration: 1, delay: index * 0.1, ease: 'power3.out'
                 });
             });
 
             gsap.from('.footer-content', {
-                scrollTrigger: {
-                    trigger: '.footer-content',
-                    start: 'top 80%',
-                },
-                y: 50,
-                opacity: 0,
-                duration: 1,
-                ease: 'power3.out'
+                scrollTrigger: { trigger: '.footer-content', start: 'top 80%' },
+                y: 50, opacity: 0, duration: 1, ease: 'power3.out'
             });
 
             // Modal functionality
@@ -1468,14 +1450,8 @@
 
             const closeModal = () => {
                 gsap.to('.modal-content', {
-                    y: 50,
-                    opacity: 0,
-                    scale: 0.8,
-                    duration: 0.3,
-                    ease: 'power3.in',
-                    onComplete: () => {
-                        modal.classList.remove('show');
-                    }
+                    y: 50, opacity: 0, scale: 0.8, duration: 0.3, ease: 'power3.in',
+                    onComplete: () => { modal.classList.remove('show'); }
                 });
             };
 
@@ -1484,25 +1460,47 @@
             closeModalBtn.addEventListener('click', closeModal);
 
             window.addEventListener('click', (event) => {
-                if (event.target === modal) {
-                    closeModal();
-                }
+                if (event.target === modal) { closeModal(); }
             });
 
-            // Login validation
+            // Login validation for both modal and hero form
             const validEmails = ['devbysomya@gmail.com', 'hardikydv17@gmail.com', 'yashikasharma959@gmail.com'];
             const validPassword = '123';
 
+            // Modal login form validation
             loginForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const email = document.getElementById('email').value.trim();
                 const password = document.getElementById('password').value.trim();
 
                 if (validEmails.includes(email) && password === validPassword) {
-                    window.location.href = 'dashboard.html';
+                    // ✅ Use Flask route instead of static file
+                    window.location.href = "/dashboard";  
                 } else {
                     alert('Invalid email or password. Please try again.');
                 }
+            });
+
+            // Hero login form validation
+            const heroLoginForm = document.getElementById('heroLoginForm');
+            heroLoginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('heroEmail').value.trim();
+                const password = document.getElementById('heroPassword').value.trim();
+
+                if (validEmails.includes(email) && password === validPassword) {
+                    // ✅ Use Flask route instead of static file
+                    window.location.href = "/dashboard";  
+                } else {
+                    alert('Invalid email or password. Please try again.');
+                }
+            });
+
+            // Social buttons placeholder functionality
+            document.querySelectorAll('.social-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    alert('Social login is not implemented yet.');
+                });
             });
         });
     </script>
