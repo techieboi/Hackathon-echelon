@@ -1,17 +1,41 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 
 db= SQLAlchemy(app)
 
-@app.route("/")
-def index():
-    return render_template("index.html")
 
-@app.route("/dashboard")
+# routes 
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/dashboard')
 def dashboard():
-    return render_template("dashboard.html")
+    return render_template('dashboard.html')
+
+@app.route('/api/messages', methods=['GET'])
+def get_messages():
+    messages = Message.query.order_by(Message.timestamp.asc()).all()
+    return jsonify([m.to_dict() for m in messages])
+
+@app.route('/api/messages', methods=['POST'])
+def add_message():
+    data = request.get_json()
+    if not data or not data.get("content"):
+        return jsonify({"error": "Message content is required"}), 400
+
+    msg = Message(
+        platform=data.get("platform", "Web"),
+        sender=data.get("sender", "You"),
+        recipient=data.get("recipient"),
+        content=data.get("content"),
+        direction=data.get("direction", "out"),
+    )
+    db.session.add(msg)
+    db.session.commit()
+    return jsonify(msg.to_dict()), 201
 
 
 if __name__ == "__main__":
