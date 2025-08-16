@@ -1152,6 +1152,18 @@
                     <div class="ai-chip">Available in my country?</div>
                 </div>
 
+                 <!-- NEW platform + recipient inputs -->
+                <div class="reply-input-container" style="margin-bottom: 10px;">
+                    <select id="platformSelect" style="padding: 10px; border-radius: 8px; border: 1px solid var(--border);">
+                        <option value="instagram">Instagram</option>
+                        <option value="telegram">Telegram</option>
+                        <option value="twitter">Twitter</option>
+                    </select>
+                    <input type="text" id="recipientInput" placeholder="Recipient username..." 
+               style="flex:1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); margin-left: 10px;">
+                </div>
+
+                <!-- Message input row -->
                 <div class="reply-input-container">
                     <div class="reply-input">
                         <input type="text" placeholder="Type a message..." id="messageInput">
