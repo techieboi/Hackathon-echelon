@@ -1,7 +1,7 @@
 import mysql.connector as mysql
 mycon = mysql.connect(host='local host',
                       user='root',
-                      passwd='2001')
+                      passwd='123')
 
 def makeunib():
     cursor=mycon.cursor()
