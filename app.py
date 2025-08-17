@@ -1,10 +1,9 @@
 from flask import Flask, render_template
-from flask_sqlalchemy import SQLAlchemy
+import os
+
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 
-db= SQLAlchemy(app)
-
+# --- Routes ---
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -13,9 +12,7 @@ def index():
 def dashboard():
     return render_template("dashboard.html")
 
-
+# --- Run App ---
 if __name__ == "__main__":
-    # Render/Railway/Heroku need this
-    import os
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=True)
