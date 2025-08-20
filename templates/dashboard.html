@@ -1022,75 +1022,8 @@
                 </div>
             </div>
 
-            <div class="conversation-items">
-                <div class="conversation-item active">
-                    <div class="avatar">
-                        <i class="fas fa-user"></i>
-                        <div class="online-status"></div>
-                    </div>
-                    <div class="conversation-details">
-                        <div class="conversation-top">
-                            <div class="sender-name">Somya Sharma</div>
-                            <div class="timestamp">10:42 AM</div>
-                        </div>
-                        <div class="last-message">Thanks for the quick response!</div>
-                    </div>
-                    <div class="unread-badge">3</div>
-                </div>
-
-                <div class="conversation-item">
-                    <div class="avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="conversation-details">
-                        <div class="conversation-top">
-                            <div class="sender-name">Hardik Yadav</div>
-                            <div class="timestamp">Yesterday</div>
-                        </div>
-                        <div class="last-message">Can we schedule a meeting next week?</div>
-                    </div>
-                </div>
-
-                <div class="conversation-item">
-                    <div class="avatar">
-                        <i class="fas fa-user"></i>
-                        <div class="online-status"></div>
-                    </div>
-                    <div class="conversation-details">
-                        <div class="conversation-top">
-                            <div class="sender-name">Yashika Sharma</div>
-                            <div class="timestamp">Yesterday</div>
-                        </div>
-                        <div class="last-message">I've sent you the design files as requested</div>
-                    </div>
-                    <div class="unread-badge">1</div>
-                </div>
-
-                <div class="conversation-item">
-                    <div class="avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="conversation-details">
-                        <div class="conversation-top">
-                            <div class="sender-name">Yashika Sharma</div>
-                            <div class="timestamp">Today</div>
-                        </div>
-                        <div class="last-message">I have a question about your services</div>
-                    </div>
-                </div>
-
-                <div class="conversation-item">
-                    <div class="avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="conversation-details">
-                        <div class="conversation-top">
-                            <div class="sender-name">Tech Support</div>
-                            <div class="timestamp">Oct 12</div>
-                        </div>
-                        <div class="last-message">Your support ticket has been resolved</div>
-                    </div>
-                </div>
+            <div class="conversation-items" id="conversationItems">
+                <!-- Conversations will be loaded dynamically -->
             </div>
         </div>
 
@@ -1118,29 +1051,12 @@
             </div>
 
             <div class="messages-container" id="messagesContainer">
-                <div class="message received">
-                    Hi there! I wanted to ask about your new product line.
-                    <div class="message-time">10:30 AM</div>
+                <div class="no-messages" id="noMessages">
+                    <i class="fas fa-comments"></i>
+                    <p>No messages yet. Select a conversation to start chatting.</p>
                 </div>
-
-                <div class="message sent">
-                    Hello Somya! I'd be happy to help. What would you like to know?
-                    <div class="message-time">10:32 AM</div>
-                </div>
-
-                <div class="message received">
-                    I'm particularly interested in the premium collection. Are they available in different colors?
-                    <div class="message-time">10:35 AM</div>
-                </div>
-
-                <div class="message sent">
-                    Yes, the premium collection comes in 5 different color options. I can send you the catalog if you'd like?
-                    <div class="message-time">10:36 AM</div>
-                </div>
-
-                <div class="message received">
-                    That would be perfect! Thank you so much!
-                    <div class="message-time">10:42 AM</div>
+                <div id="loadingSpinner" style="display:none;text-align:center;margin-top:20px;">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
                 </div>
             </div>
 
@@ -1207,118 +1123,105 @@
         });
 
         // Platform switching
-        const platformIcons = document.querySelectorAll('.platform-icon');
-        platformIcons.forEach(icon => {
-            icon.addEventListener('click', function() {
-                platformIcons.forEach(i => i.classList.remove('active'));
-                this.classList.add('active');
+        let currentPlatform = 'telegram';
+        let currentConversation = null;
 
-                const chatPlatform = document.querySelector('.chat-platform');
-                if (chatPlatform) {
-                    if (this.classList.contains('instagram')) {
-                        chatPlatform.innerHTML = '<span class="platform-indicator instagram"></span> Instagram';
-                    } else if (this.classList.contains('telegram')) {
-                        chatPlatform.innerHTML = '<span class="platform-indicator telegram"></span> Telegram';
-                    } else if (this.classList.contains('twitter')) {
-                        chatPlatform.innerHTML = '<span class="platform-indicator twitter"></span> Twitter';
+        function showLoading(show) {
+            document.getElementById('loadingSpinner').style.display = show ? 'block' : 'none';
+        }
+
+        function loadConversations() {
+            fetch('/api/conversations')
+                .then(res => res.json())
+                .then(conversations => {
+                    const items = document.getElementById('conversationItems');
+                    items.innerHTML = '';
+                    conversations.filter(conv => conv.platform === currentPlatform)
+                        .forEach(conv => {
+                            const div = document.createElement('div');
+                            div.className = 'conversation-item';
+                            div.innerHTML = `
+                                <div class="avatar"><i class="fas fa-user"></i></div>
+                                <div class="conversation-details">
+                                    <div class="conversation-top">
+                                        <div class="sender-name">${conv.chat_name}</div>
+                                        <div class="timestamp">${conv.timestamp}</div>
+                                    </div>
+                                    <div class="last-message">Click to view conversation</div>
+                                </div>
+                                <div class="unread-badge">${conv.msg_count}</div>
+                            `;
+                            div.onclick = () => {
+                                currentConversation = conv;
+                                document.querySelector('.chat-contact').textContent = conv.chat_name;
+                                loadMessages(conv.chat_id, conv.chat_name);
+                            };
+                            items.appendChild(div);
+                        });
+                });
+        }
+
+        function loadMessages(chat_id, chat_name) {
+            showLoading(true);
+            fetch(`/api/messages?platform=${currentPlatform}&chat_id=${chat_id}`)
+                .then(res => res.json())
+                .then(messages => {
+                    showLoading(false);
+                    const container = document.getElementById('messagesContainer');
+                    container.innerHTML = '';
+                    messages.forEach(msg => {
+                        let displayName = msg.direction === 'sent' ? 'You' : chat_name;
+                        const div = document.createElement('div');
+                        div.className = 'message ' + (msg.direction === 'sent' ? 'sent' : 'received');
+                        div.innerHTML = `<strong>${displayName}:</strong> ${msg.message}<div class="message-time">${msg.timestamp}</div>`;
+                        container.appendChild(div);
+                    });
+                    if (container.innerHTML === '') {
+                        container.innerHTML = `<div class="no-messages" id="noMessages"><i class="fas fa-comments"></i><p>No messages yet. Select a conversation to start chatting.</p></div>`;
                     }
-                }
-            });
-        });
+                    container.scrollTop = container.scrollHeight;
+                });
+        }
 
-        // Conversation item selection
-        const conversationItems = document.querySelectorAll('.conversation-item');
-        conversationItems.forEach(item => {
-            item.addEventListener('click', function() {
-                conversationItems.forEach(i => i.classList.remove('active'));
-                this.classList.add('active');
-
-                const senderName = this.querySelector('.sender-name').textContent;
-                const chatContact = document.querySelector('.chat-contact');
-                if (chatContact) {
-                    chatContact.textContent = senderName;
-                }
-
-                const messagesContainer = document.getElementById('messagesContainer');
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                if (window.innerWidth <= 768) {
-                    conversationList.classList.remove('active');
-                    mobileOverlay.classList.remove('active');
-                }
-            });
-        });
-
-        // Send message functionality
-        const sendButton = document.getElementById('sendButton');
-        const messageInput = document.getElementById('messageInput');
-
-        sendButton.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
+        document.getElementById('sendButton').addEventListener('click', sendMessage);
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
         });
 
         function sendMessage() {
-            const messageText = messageInput.value.trim();
-            if (messageText) {
-                const messagesContainer = document.getElementById('messagesContainer');
-                const now = new Date();
-                const timeString = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
-
-                const messageElement = document.createElement('div');
-                messageElement.className = 'message sent';
-                messageElement.innerHTML = `
-                    ${messageText}
-                    <div class="message-time">${timeString}</div>
-                `;
-                messagesContainer.appendChild(messageElement);
-                messageInput.value = '';
-
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                gsap.from(messageElement, {
-                    opacity: 0,
-                    y: 20,
-                    duration: 0.5,
-                    ease: "power2.out"
+            const messageText = document.getElementById('messageInput').value.trim();
+            if (messageText && currentConversation) {
+                fetch('/api/send_message', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        platform: currentPlatform,
+                        message: messageText,
+                        chat_id: currentConversation.chat_id,
+                        chat_name: currentConversation.chat_name
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        document.getElementById('messageInput').value = '';
+                        loadMessages(currentConversation.chat_id, currentConversation.chat_name);
+                    }
                 });
-
-                setTimeout(() => {
-                    const receivedMessage = document.createElement('div');
-                    receivedMessage.className = 'message received';
-                    receivedMessage.innerHTML = `
-                        Thanks for the info! I'll review it and get back to you soon.
-                        <div class="message-time">${timeString}</div>
-                    `;
-                    messagesContainer.appendChild(receivedMessage);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-
-                    gsap.from(receivedMessage, {
-                        opacity: 0,
-                        y: 20,
-                        duration: 0.5,
-                        ease: "power2.out"
-                    });
-                }, 1000);
             }
         }
 
         // Quick reply chips
-        const quickReplies = document.querySelectorAll('.ai-chip');
-        quickReplies.forEach(chip => {
+        document.querySelectorAll('.ai-chip').forEach(chip => {
             chip.addEventListener('click', function() {
-                messageInput.value = this.textContent;
-                messageInput.focus();
+                document.getElementById('messageInput').value = this.textContent;
+                document.getElementById('messageInput').focus();
             });
         });
 
-        // Scroll to bottom on load
-        window.addEventListener('load', function() {
-            const messagesContainer = document.getElementById('messagesContainer');
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        });
+        // Initial load
+        loadConversations();
+        setInterval(loadConversations, 10000);
 
         // Initialize GSAP animations
         gsap.registerPlugin(ScrollTrigger);
