@@ -6,6 +6,8 @@ import config
 from telethon import TelegramClient, events
 import asyncio
 import threading
+import traceback
+import os
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Change this!
@@ -37,18 +39,42 @@ def init_db():
 init_db()
 
 # --- Telegram setup ---
-client = TelegramClient('tg_session', config.API_ID, config.API_HASH)
+client = TelegramClient('tg_session.session', config.API_ID, config.API_HASH)  # Use file-based session
 client_started = False
 
 # Global event loop for Telethon
 telethon_loop = None
+telethon_ready = threading.Event()
 
 def run_telegram_client():
     global telethon_loop
     telethon_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(telethon_loop)
-    client.start(phone=config.PHONE)
-    client.run_until_disconnected()
+    try:
+        print("Starting Telegram client...")
+        client.start(phone=config.PHONE)
+        print("Telegram client started and connected.")
+        telethon_ready.set()
+        client.run_until_disconnected()
+    except Exception as e:
+        print("Telegram client failed to start:", e)
+        traceback.print_exc()
+        # If database is locked, delete session file and ask user to restart
+        if "database is locked" in str(e):
+            print("Session file is locked. Please stop all Python processes, delete 'tg_session.session', and restart the app.")
+        telethon_ready.clear()
+
+def wait_for_telegram_ready(timeout=30):
+    import time
+    waited = 0
+    while not telethon_ready.is_set() and waited < timeout:
+        print(f"Waiting for Telegram client to be ready... ({waited+1}s)")
+        time.sleep(1)
+        waited += 1
+    if not telethon_ready.is_set():
+        print("Telegram client did not become ready in time.")
+        return False
+    return True
 
 def start_telegram_background():
     global client_started
@@ -85,25 +111,45 @@ async def telegram_message_handler(event):
 
 def send_telegram_message(chat_id, message, chat_name=None):
     global telethon_loop
-    start_telegram_background()
     # Wait for Telethon client and loop to be ready
-    import time
-    for _ in range(20):  # Wait up to 2 seconds
-        if telethon_loop and client.is_connected():
-            break
-        time.sleep(0.1)
-    if not telethon_loop or not client.is_connected():
-        raise Exception("Telegram client not ready")
+    if not telethon_ready.is_set():
+        print("Telegram client not ready, waiting up to 30 seconds...")
+        if not wait_for_telegram_ready(timeout=30):
+            raise Exception("Telegram client not ready")
     try:
+        # Try to convert chat_id to int, fallback to string if fails
+        try:
+            chat_id_val = int(chat_id)
+        except Exception:
+            chat_id_val = chat_id
+        print(f"Sending Telegram message to chat_id={chat_id_val}: {message}")
         future = asyncio.run_coroutine_threadsafe(
-            client.send_message(int(chat_id), message), telethon_loop
+            client.send_message(chat_id_val, message), telethon_loop
         )
         result = future.result(timeout=10)
         store_message('telegram', 'You', message, 'sent', chat_id=chat_id, chat_name=chat_name)
         return result
     except Exception as e:
         print(f"Error sending Telegram message: {e}")
+        traceback.print_exc()
         raise e
+
+# Dummy data for other platforms (Instagram, Twitter)
+CONVERSATIONS = [
+    {'chat_id': '2', 'chat_name': 'Bob', 'platform': 'instagram', 'timestamp': '2024-06-10 09:30', 'msg_count': 3},
+    {'chat_id': '3', 'chat_name': 'Charlie', 'platform': 'twitter', 'timestamp': '2024-06-09 18:00', 'msg_count': 2},
+]
+MESSAGES = {
+    '2': [
+        {'direction': 'received', 'message': 'Hey!', 'sender': 'Bob', 'timestamp': '2024-06-10 09:30'},
+        {'direction': 'sent', 'message': 'Hi Bob, how are you?', 'sender': 'You', 'timestamp': '2024-06-10 09:31'},
+        {'direction': 'received', 'message': 'I am good, thanks!', 'sender': 'Bob', 'timestamp': '2024-06-10 09:32'},
+    ],
+    '3': [
+        {'direction': 'received', 'message': 'Hello from Twitter!', 'sender': 'Charlie', 'timestamp': '2024-06-09 18:00'},
+        {'direction': 'sent', 'message': 'Hi Charlie!', 'sender': 'You', 'timestamp': '2024-06-09 18:01'},
+    ]
+}
 
 # --- Flask routes ---
 @app.route('/')
@@ -192,9 +238,7 @@ def api_messages():
             ]
         return jsonify(msgs)
     # Dummy for other platforms
-    return jsonify([
-        {'direction': 'received', 'message': 'Hey!', 'sender': 'Bob', 'timestamp': '2024-06-10 09:30'}
-    ] if chat_id == '2' else [])
+    return jsonify(MESSAGES.get(chat_id, []))
 
 @app.route('/api/send_message', methods=['POST'])
 def api_send_message():
@@ -209,7 +253,6 @@ def api_send_message():
         return jsonify({'status': 'error', 'message': 'Missing data'}), 400
     if platform == 'telegram':
         try:
-            start_telegram_background()
             send_telegram_message(chat_id, message, chat_name)
             return jsonify({'status': 'success'})
         except Exception as e:
@@ -230,5 +273,18 @@ def api_send_message():
     return jsonify({'status': 'success'})
 
 if __name__ == '__main__':
-    # Only start Flask, Telegram client will start in background as needed
-    app.run(debug=True)
+    # Check for session file lock before starting
+    session_file = 'tg_session.session'
+    journal_file = 'tg_session.session-journal'
+    for f in [session_file, journal_file]:
+        if os.path.exists(f):
+            try:
+                with open(f, 'rb+') as file_check:
+                    file_check.write(b'')  # Try to write to check for lock
+            except Exception as e:
+                print(f"Session file '{f}' is locked or in use. Please close all Python processes and delete this file before starting.")
+                exit(1)
+    start_telegram_background()
+    # Wait for Telegram client to be ready before starting Flask
+    wait_for_telegram_ready(timeout=30)
+    app.run(debug=False)  # Disable debug auto-reload
