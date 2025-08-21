@@ -272,6 +272,14 @@ def api_send_message():
             conv['timestamp'] = '2024-06-10 12:00'
     return jsonify({'status': 'success'})
 
+def ensure_telegram_login():
+    # Run this in main thread before starting Flask
+    with TelegramClient('tg_session.session', config.API_ID, config.API_HASH) as temp_client:
+        if not temp_client.is_user_authorized():
+            print("Telegram not authorized. Starting login flow in main thread.")
+            temp_client.start(phone=config.PHONE)
+            print("Telegram login complete.")
+
 if __name__ == '__main__':
     # Check for session file lock before starting
     session_file = 'tg_session.session'
@@ -284,6 +292,8 @@ if __name__ == '__main__':
             except Exception as e:
                 print(f"Session file '{f}' is locked or in use. Please close all Python processes and delete this file before starting.")
                 exit(1)
+    # Ensure Telegram login in main thread so OTP can be entered
+    ensure_telegram_login()
     start_telegram_background()
     # Wait for Telegram client to be ready before starting Flask
     wait_for_telegram_ready(timeout=30)
