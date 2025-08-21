@@ -1465,6 +1465,17 @@
 
             // Login validation for both modal and hero form
             // Updated login logic to use Flask endpoint
+            function smoothRedirect(url) {
+                // Fade out body, then redirect
+                gsap.to(document.body, {
+                    opacity: 0,
+                    duration: 0.6,
+                    onComplete: function() {
+                        window.location.href = url;
+                    }
+                });
+            }
+
             loginForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const email = document.getElementById('email').value.trim();
@@ -1481,7 +1492,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        window.location.href = "/dashboard";
+                        smoothRedirect("/dashboard");
                     } else {
                         alert('Invalid email or password. Please try again.');
                     }
@@ -1509,7 +1520,7 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        window.location.href = "/dashboard";
+                        smoothRedirect("/dashboard");
                     } else {
                         alert('Invalid email or password. Please try again.');
                     }

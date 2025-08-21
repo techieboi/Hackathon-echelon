@@ -108,17 +108,16 @@ def send_telegram_message(chat_id, message, chat_name=None):
 # --- Flask routes ---
 @app.route('/')
 def index():
-    if 'user' in session:
-        return redirect(url_for('dashboard'))
+    # Always serve index.html as the main page, even if logged in
     return render_template('index.html')
 
 @app.route('/login', methods=['POST'])
 def login():
-    # Accept both AJAX and form POSTs
     email = request.form.get('email')
     password = request.form.get('password')
     if email == USER['email'] and password == USER['password']:
         session['user'] = email
+        # AJAX/fetch request returns JSON, otherwise redirect
         if request.headers.get('Accept') == 'application/json' or request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             return jsonify({'success': True})
         return redirect(url_for('dashboard'))
@@ -130,8 +129,6 @@ def login():
 def dashboard():
     if 'user' not in session:
         return redirect(url_for('index'))
-    # Ensure Telegram client is running
-    start_telegram_background()
     return render_template('dashboard.html')
 
 @app.route('/logout')
