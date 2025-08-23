@@ -303,9 +303,13 @@
                 </div>
             </div>
             <div class="messages" id="messages"></div>
+            <div id="aiSuggestion" style="margin: 0 24px 10px 24px; color: #10b981; font-size: 15px; cursor: pointer; display: none;"></div>
             <div class="chat-input-area">
                 <input type="text" id="chatInput" class="chat-input" placeholder="Type a message..." autocomplete="off">
                 <button class="send-btn" id="sendBtn"><i class="fas fa-paper-plane"></i></button>
+                <button class="send-btn" id="suggestBtn" title="Suggest AI Reply" style="background: #10b981; margin-left: 6px;">
+                    <i class="fas fa-magic"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -432,7 +436,7 @@
                 })
             })
             .then(res => res.json())
-            .then(data => {
+            .then data => {
                 document.getElementById('sendBtn').disabled = false;
                 if (data.status === 'success') {
                     loadMessages(currentConversation.chat_id);
@@ -447,6 +451,50 @@
             });
         }
 
+        function showAISuggestion(text) {
+            const aiDiv = document.getElementById('aiSuggestion');
+            aiDiv.textContent = text;
+            aiDiv.style.display = 'block';
+            aiDiv.onclick = function() {
+                document.getElementById('chatInput').value = text;
+            };
+        }
+
+        function hideAISuggestion() {
+            const aiDiv = document.getElementById('aiSuggestion');
+            aiDiv.textContent = '';
+            aiDiv.style.display = 'none';
+            aiDiv.onclick = null;
+        }
+
+        document.getElementById('suggestBtn').onclick = function() {
+            hideAISuggestion();
+            if (!currentConversation) return;
+            document.getElementById('suggestBtn').disabled = true;
+            fetch('/api/suggest_reply', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    platform: currentPlatform,
+                    chat_id: currentConversation.chat_id
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('suggestBtn').disabled = false;
+                if (data.status === 'success') {
+                    showAISuggestion(data.reply);
+                } else {
+                    showAISuggestion('No suggestion available.');
+                }
+            })
+            .catch(() => {
+                document.getElementById('suggestBtn').disabled = false;
+                showAISuggestion('Failed to get suggestion.');
+            });
+        };
+
+        // Hide suggestion when sending a message
         document.getElementById('sendBtn').onclick = sendMessage;
         document.getElementById('chatInput').onkeypress = function(e) {
             if (e.key === 'Enter') sendMessage();

@@ -8,6 +8,8 @@ import asyncio
 import threading
 import traceback
 import os
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Change this!
@@ -150,6 +152,47 @@ MESSAGES = {
         {'direction': 'sent', 'message': 'Hi Charlie!', 'sender': 'You', 'timestamp': '2024-06-09 18:01'},
     ]
 }
+
+# --- BlenderBot setup ---
+print("Loading BlenderBot 400M Distill model...")
+BLENDERBOT_MODEL = "facebook/blenderbot-400M-distill"
+tokenizer = AutoTokenizer.from_pretrained(BLENDERBOT_MODEL)
+model = AutoModelForCausalLM.from_pretrained(BLENDERBOT_MODEL)
+print("BlenderBot model loaded.")
+
+def generate_ai_reply(message_text):
+    # BlenderBot expects conversation history, but for single-turn, just use the last message
+    inputs = tokenizer([message_text], return_tensors="pt")
+    reply_ids = model.generate(**inputs, max_length=100, pad_token_id=tokenizer.eos_token_id)
+    reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
+    return reply
+
+@app.route('/api/suggest_reply', methods=['POST'])
+def api_suggest_reply():
+    if 'user' not in session:
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 401
+    data = request.get_json()
+    chat_id = data.get('chat_id')
+    platform = data.get('platform')
+    if not chat_id or not platform:
+        return jsonify({'status': 'error', 'message': 'Missing data'}), 400
+    # Only support Telegram for now
+    if platform == 'telegram':
+        with sqlite3.connect('messages.db', check_same_thread=False) as conn:
+            c = conn.cursor()
+            c.execute("""
+                SELECT message FROM messages
+                WHERE platform='telegram' AND chat_id=?
+                ORDER BY timestamp DESC LIMIT 1
+            """, (chat_id,))
+            row = c.fetchone()
+            if not row:
+                return jsonify({'status': 'error', 'message': 'No messages found'})
+            last_message = row[0]
+        ai_reply = generate_ai_reply(last_message)
+        return jsonify({'status': 'success', 'reply': ai_reply})
+    # Dummy for other platforms
+    return jsonify({'status': 'success', 'reply': 'Hey! How can I help you?'})
 
 # --- Flask routes ---
 @app.route('/')
