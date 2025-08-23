@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unified Inbox Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -316,14 +316,14 @@
     <script>
         let currentPlatform = 'telegram';
         let currentConversation = null;
-        let conversations = [];
+        let allConversations = [];
 
         function setPlatform(platform) {
             currentPlatform = platform;
             document.querySelectorAll('.platform-icon').forEach(el => {
                 el.classList.toggle('active', el.dataset.platform === platform);
             });
-            loadConversations();
+            renderConversations();
             clearChat();
         }
 
@@ -336,9 +336,10 @@
             document.getElementById('chatPlatform').textContent = '';
             document.getElementById('messages').innerHTML = '<div class="no-messages">No messages yet.<br>Select a conversation.</div>';
             currentConversation = null;
+            hideAISuggestion();
         }
 
-        function loadConversations() {
+        function fetchAllConversations() {
             const convList = document.getElementById('convList');
             convList.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
             fetch('/api/conversations')
@@ -350,42 +351,49 @@
                     return res.json();
                 })
                 .then(data => {
-                    conversations = data.filter(c => c.platform === currentPlatform);
-                    convList.innerHTML = '';
-                    if (conversations.length === 0) {
-                        convList.innerHTML = '<div class="no-messages">No conversations found.</div>';
-                        return;
-                    }
-                    conversations.forEach((conv, idx) => {
-                        const div = document.createElement('div');
-                        div.className = 'conv-item' + (currentConversation && currentConversation.chat_id === conv.chat_id ? ' active' : '');
-                        div.innerHTML = `
-                            <div class="conv-avatar"><i class="fas fa-user"></i></div>
-                            <div class="conv-details">
-                                <div class="conv-name">${conv.chat_name}</div>
-                                <div class="conv-meta">${conv.timestamp} • ${conv.msg_count} messages</div>
-                            </div>
-                            ${conv.msg_count > 0 ? `<div class="conv-unread">${conv.msg_count}</div>` : ''}
-                        `;
-                        div.onclick = () => {
-                            document.querySelectorAll('.conv-item').forEach(i => i.classList.remove('active'));
-                            div.classList.add('active');
-                            currentConversation = conv;
-                            document.getElementById('chatTitle').textContent = conv.chat_name;
-                            document.getElementById('chatPlatform').textContent = currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1);
-                            loadMessages(conv.chat_id);
-                        };
-                        convList.appendChild(div);
-                    });
+                    allConversations = data;
+                    renderConversations();
                 })
                 .catch(() => {
                     convList.innerHTML = '<div class="no-messages">Failed to load conversations.</div>';
                 });
         }
 
+        function renderConversations() {
+            const convList = document.getElementById('convList');
+            const conversations = allConversations.filter(c => c.platform === currentPlatform);
+            convList.innerHTML = '';
+            if (conversations.length === 0) {
+                convList.innerHTML = '<div class="no-messages">No conversations found.</div>';
+                return;
+            }
+            conversations.forEach((conv, idx) => {
+                const div = document.createElement('div');
+                div.className = 'conv-item' + (currentConversation && currentConversation.chat_id === conv.chat_id ? ' active' : '');
+                div.innerHTML = `
+                    <div class="conv-avatar"><i class="fas fa-user"></i></div>
+                    <div class="conv-details">
+                        <div class="conv-name">${conv.chat_name}</div>
+                        <div class="conv-meta">${new Date(conv.timestamp).toLocaleString()} • ${conv.msg_count} msgs</div>
+                    </div>
+                    ${conv.msg_count > 0 ? `<div class="conv-unread">${conv.msg_count}</div>` : ''}
+                `;
+                div.onclick = () => {
+                    document.querySelectorAll('.conv-item').forEach(i => i.classList.remove('active'));
+                    div.classList.add('active');
+                    currentConversation = conv;
+                    document.getElementById('chatTitle').textContent = conv.chat_name;
+                    document.getElementById('chatPlatform').textContent = currentPlatform.charAt(0).toUpperCase() + currentPlatform.slice(1);
+                    loadMessages(conv.chat_id);
+                };
+                convList.appendChild(div);
+            });
+        }
+
         function loadMessages(chat_id) {
             const messagesDiv = document.getElementById('messages');
             messagesDiv.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+            hideAISuggestion();
             fetch(`/api/messages?platform=${currentPlatform}&chat_id=${chat_id}`)
                 .then(res => {
                     if (res.status === 401) {
@@ -396,18 +404,19 @@
                 })
                 .then(msgs => {
                     messagesDiv.innerHTML = '';
-                    if (!msgs.length) {
+                    if (!msgs || !msgs.length) {
                         messagesDiv.innerHTML = '<div class="no-messages">No messages yet.<br>Start the conversation!</div>';
                         return;
                     }
                     msgs.forEach(msg => {
                         const div = document.createElement('div');
                         div.className = 'message ' + (msg.direction === 'sent' ? 'sent' : 'received');
+                        const timestamp = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         div.innerHTML = `
                             <div>${msg.message}</div>
                             <div class="message-info">
                                 <span>${msg.direction === 'sent' ? 'You' : msg.sender}</span>
-                                <span>${msg.timestamp}</span>
+                                <span>${timestamp}</span>
                             </div>
                         `;
                         messagesDiv.appendChild(div);
@@ -423,37 +432,42 @@
             const input = document.getElementById('chatInput');
             const text = input.value.trim();
             if (!text || !currentConversation) return;
+            const originalText = text;
             input.value = '';
             document.getElementById('sendBtn').disabled = true;
+            hideAISuggestion();
+
             fetch('/api/send_message', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({
                     platform: currentPlatform,
-                    message: text,
+                    message: originalText,
                     chat_id: currentConversation.chat_id,
                     chat_name: currentConversation.chat_name
                 })
             })
             .then(res => res.json())
-            .then data => {
+            .then(data => {
                 document.getElementById('sendBtn').disabled = false;
                 if (data.status === 'success') {
                     loadMessages(currentConversation.chat_id);
-                    loadConversations();
+                    fetchAllConversations(); // Refresh counts/timestamps
                 } else {
                     alert('Failed to send message: ' + (data.message || 'Unknown error'));
+                    input.value = originalText;
                 }
             })
             .catch(() => {
                 document.getElementById('sendBtn').disabled = false;
                 alert('Failed to send message.');
+                input.value = originalText;
             });
         }
 
         function showAISuggestion(text) {
             const aiDiv = document.getElementById('aiSuggestion');
-            aiDiv.textContent = text;
+            aiDiv.textContent = text || "Sorry, AI suggestion is currently unavailable.";
             aiDiv.style.display = 'block';
             aiDiv.onclick = function() {
                 document.getElementById('chatInput').value = text;
@@ -469,8 +483,14 @@
 
         document.getElementById('suggestBtn').onclick = function() {
             hideAISuggestion();
-            if (!currentConversation) return;
-            document.getElementById('suggestBtn').disabled = true;
+            if (!currentConversation) {
+                alert("Please select a conversation first.");
+                return;
+            }
+            const suggestBtn = document.getElementById('suggestBtn');
+            suggestBtn.disabled = true;
+            suggestBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
             fetch('/api/suggest_reply', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -481,28 +501,33 @@
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById('suggestBtn').disabled = false;
-                if (data.status === 'success') {
+                suggestBtn.disabled = false;
+                suggestBtn.innerHTML = '<i class="fas fa-magic"></i>';
+                if (data.status === 'success' && data.reply) {
                     showAISuggestion(data.reply);
                 } else {
-                    showAISuggestion('No suggestion available.');
+                    showAISuggestion('No suggestion available. ' + (data.message || ''));
                 }
             })
             .catch(() => {
-                document.getElementById('suggestBtn').disabled = false;
+                suggestBtn.disabled = false;
+                suggestBtn.innerHTML = '<i class="fas fa-magic"></i>';
                 showAISuggestion('Failed to get suggestion.');
             });
         };
 
-        // Hide suggestion when sending a message
         document.getElementById('sendBtn').onclick = sendMessage;
         document.getElementById('chatInput').onkeypress = function(e) {
-            if (e.key === 'Enter') sendMessage();
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
         };
+        document.getElementById('chatInput').addEventListener('input', hideAISuggestion);
 
         // Initial load
-        loadConversations();
-        setInterval(loadConversations, 10000);
+        fetchAllConversations();
+        setInterval(fetchAllConversations, 10000);
     </script>
 </body>
 </html>

@@ -8,7 +8,8 @@ import asyncio
 import threading
 import traceback
 import os
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import requests
+from transformers import BlenderbotTokenizer, BlenderbotForConditionalGeneration
 import torch
 
 app = Flask(__name__)
@@ -153,15 +154,13 @@ MESSAGES = {
     ]
 }
 
-# --- BlenderBot setup ---
-print("Loading BlenderBot 400M Distill model...")
+# --- Local BlenderBot setup ---
 BLENDERBOT_MODEL = "facebook/blenderbot-400M-distill"
-tokenizer = AutoTokenizer.from_pretrained(BLENDERBOT_MODEL)
-model = AutoModelForCausalLM.from_pretrained(BLENDERBOT_MODEL)
-print("BlenderBot model loaded.")
+tokenizer = BlenderbotTokenizer.from_pretrained(BLENDERBOT_MODEL)
+model = BlenderbotForConditionalGeneration.from_pretrained(BLENDERBOT_MODEL)
 
 def generate_ai_reply(message_text):
-    # BlenderBot expects conversation history, but for single-turn, just use the last message
+    # Run BlenderBot locally for reply suggestion
     inputs = tokenizer([message_text], return_tensors="pt")
     reply_ids = model.generate(**inputs, max_length=100, pad_token_id=tokenizer.eos_token_id)
     reply = tokenizer.decode(reply_ids[0], skip_special_tokens=True)
@@ -176,22 +175,45 @@ def api_suggest_reply():
     platform = data.get('platform')
     if not chat_id or not platform:
         return jsonify({'status': 'error', 'message': 'Missing data'}), 400
-    # Only support Telegram for now
+
+    def get_last_received_not_sent(received_list, last_sent):
+        for msg in received_list:
+            if msg and msg != last_sent:
+                return msg
+        return received_list[0] if received_list else None
+
     if platform == 'telegram':
         with sqlite3.connect('messages.db', check_same_thread=False) as conn:
             c = conn.cursor()
             c.execute("""
                 SELECT message FROM messages
-                WHERE platform='telegram' AND chat_id=?
+                WHERE platform='telegram' AND chat_id=? AND direction='sent'
                 ORDER BY timestamp DESC LIMIT 1
             """, (chat_id,))
-            row = c.fetchone()
-            if not row:
-                return jsonify({'status': 'error', 'message': 'No messages found'})
-            last_message = row[0]
-        ai_reply = generate_ai_reply(last_message)
+            last_sent_row = c.fetchone()
+            last_sent = last_sent_row[0] if last_sent_row else None
+
+            c.execute("""
+                SELECT message FROM messages
+                WHERE platform='telegram' AND chat_id=? AND direction='received'
+                ORDER BY timestamp DESC
+            """, (chat_id,))
+            received_rows = [row[0] for row in c.fetchall()]
+            last_received = get_last_received_not_sent(received_rows, last_sent)
+
+            if not last_received:
+                return jsonify({'status': 'error', 'message': 'No suitable received message found'})
+        ai_reply = generate_ai_reply(last_received)
         return jsonify({'status': 'success', 'reply': ai_reply})
+
     # Dummy for other platforms
+    msgs = MESSAGES.get(chat_id, [])
+    last_sent = next((m['message'] for m in reversed(msgs) if m['direction'] == 'sent'), None)
+    received_msgs = [m['message'] for m in reversed(msgs) if m['direction'] == 'received']
+    last_received = get_last_received_not_sent(received_msgs, last_sent)
+    if last_received:
+        ai_reply = generate_ai_reply(last_received)
+        return jsonify({'status': 'success', 'reply': ai_reply})
     return jsonify({'status': 'success', 'reply': 'Hey! How can I help you?'})
 
 # --- Flask routes ---
@@ -229,16 +251,16 @@ def logout():
 def api_conversations():
     if 'user' not in session:
         return jsonify([]), 401
+    # Get all unique Telegram chats from DB
     with sqlite3.connect('messages.db', check_same_thread=False) as conn:
         c = conn.cursor()
         c.execute("""
             SELECT chat_id, COALESCE(chat_name, 'Unknown'), platform, MAX(timestamp) as timestamp, COUNT(*) as msg_count
             FROM messages
-            WHERE platform='telegram'
-            GROUP BY chat_id
+            GROUP BY platform, chat_id
             ORDER BY timestamp DESC
         """)
-        telegram_convs = [
+        all_convs = [
             {
                 'chat_id': row[0],
                 'chat_name': row[1],
@@ -248,10 +270,24 @@ def api_conversations():
             }
             for row in c.fetchall()
         ]
-    # Dummy for other platforms
+    # Filter for Telegram, Instagram, Twitter
+    telegram_convs = [c for c in all_convs if c['platform'] == 'telegram']
+    # Always show dummy conversations for Instagram/Twitter
     dummy_convs = [
-        {'chat_id': '2', 'chat_name': 'Bob', 'platform': 'instagram', 'timestamp': '2024-06-10 09:30', 'msg_count': 1},
-        {'chat_id': '3', 'chat_name': 'Charlie', 'platform': 'twitter', 'timestamp': '2024-06-09 18:00', 'msg_count': 0},
+        {
+            'chat_id': '2',
+            'chat_name': 'Bob',
+            'platform': 'instagram',
+            'timestamp': MESSAGES['2'][-1]['timestamp'] if MESSAGES['2'] else '2024-06-10 09:30',
+            'msg_count': len(MESSAGES['2'])
+        },
+        {
+            'chat_id': '3',
+            'chat_name': 'Charlie',
+            'platform': 'twitter',
+            'timestamp': MESSAGES['3'][-1]['timestamp'] if MESSAGES['3'] else '2024-06-09 18:00',
+            'msg_count': len(MESSAGES['3'])
+        },
     ]
     return jsonify(telegram_convs + dummy_convs)
 
@@ -280,7 +316,7 @@ def api_messages():
                 for row in c.fetchall()
             ]
         return jsonify(msgs)
-    # Dummy for other platforms
+    # Always show dummy messages for Instagram/Twitter
     return jsonify(MESSAGES.get(chat_id, []))
 
 @app.route('/api/send_message', methods=['POST'])
@@ -318,7 +354,9 @@ def api_send_message():
 def ensure_telegram_login():
     # Run this in main thread before starting Flask
     with TelegramClient('tg_session.session', config.API_ID, config.API_HASH) as temp_client:
-        if not temp_client.is_user_authorized():
+        # Fix: Await the coroutine properly
+        authorized = temp_client.loop.run_until_complete(temp_client.is_user_authorized())
+        if not authorized:
             print("Telegram not authorized. Starting login flow in main thread.")
             temp_client.start(phone=config.PHONE)
             print("Telegram login complete.")
