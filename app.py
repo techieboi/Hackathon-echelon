@@ -11,6 +11,7 @@ import os
 import requests
 from transformers import BlenderbotTokenizer, BlenderbotForConditionalGeneration
 import torch
+from instagrapi import Client
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'  # Change this!
@@ -251,16 +252,17 @@ def logout():
 def api_conversations():
     if 'user' not in session:
         return jsonify([]), 401
-    # Get all unique Telegram chats from DB
+    telegram_convs = []
     with sqlite3.connect('messages.db', check_same_thread=False) as conn:
         c = conn.cursor()
         c.execute("""
             SELECT chat_id, COALESCE(chat_name, 'Unknown'), platform, MAX(timestamp) as timestamp, COUNT(*) as msg_count
             FROM messages
+            WHERE platform='telegram'
             GROUP BY platform, chat_id
             ORDER BY timestamp DESC
         """)
-        all_convs = [
+        telegram_convs = [
             {
                 'chat_id': row[0],
                 'chat_name': row[1],
@@ -270,26 +272,40 @@ def api_conversations():
             }
             for row in c.fetchall()
         ]
-    # Filter for Telegram, Instagram, Twitter
-    telegram_convs = [c for c in all_convs if c['platform'] == 'telegram']
-    # Always show dummy conversations for Instagram/Twitter
-    dummy_convs = [
-        {
-            'chat_id': '2',
-            'chat_name': 'Bob',
-            'platform': 'instagram',
-            'timestamp': MESSAGES['2'][-1]['timestamp'] if MESSAGES['2'] else '2024-06-10 09:30',
-            'msg_count': len(MESSAGES['2'])
-        },
-        {
-            'chat_id': '3',
-            'chat_name': 'Charlie',
-            'platform': 'twitter',
-            'timestamp': MESSAGES['3'][-1]['timestamp'] if MESSAGES['3'] else '2024-06-09 18:00',
-            'msg_count': len(MESSAGES['3'])
-        },
-    ]
-    return jsonify(telegram_convs + dummy_convs)
+    insta_convs = []
+    if instagram_client:
+        try:
+            threads = instagram_client.direct_threads()
+            for t in threads:
+                # Only show threads with messages and at least one other user
+                if not t.messages or not t.users or len(t.users) < 2:
+                    continue
+                # Find the other user (not yourself)
+                other_user = next((u for u in t.users if u.pk != instagram_client.user_id), None)
+                if not other_user:
+                    continue
+                chat_name = other_user.username
+                timestamp = ""
+                if t.last_message and hasattr(t.last_message, "timestamp"):
+                    timestamp = t.last_message.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+                insta_convs.append({
+                    'chat_id': str(t.id),
+                    'chat_name': chat_name,
+                    'platform': 'instagram',
+                    'timestamp': timestamp,
+                    'msg_count': len(t.messages),
+                    'user_pk': other_user.pk  # needed for sending
+                })
+        except Exception as e:
+            print("Instagram fetch error:", e)
+    dummy_twitter = {
+        'chat_id': '3',
+        'chat_name': 'Charlie',
+        'platform': 'twitter',
+        'timestamp': MESSAGES['3'][-1]['timestamp'] if MESSAGES['3'] else '2024-06-09 18:00',
+        'msg_count': len(MESSAGES['3'])
+    }
+    return jsonify(telegram_convs + insta_convs + [dummy_twitter])
 
 @app.route('/api/messages')
 def api_messages():
@@ -316,7 +332,30 @@ def api_messages():
                 for row in c.fetchall()
             ]
         return jsonify(msgs)
-    # Always show dummy messages for Instagram/Twitter
+    elif platform == 'instagram':
+        msgs = []
+        if instagram_client:
+            try:
+                thread = instagram_client.direct_thread(chat_id)
+                for m in thread.messages:
+                    try:
+                        if not hasattr(m, "text") or m.text is None:
+                            continue
+                        direction = 'sent' if m.user_id == instagram_client.user_id else 'received'
+                        sender = instagram_client.username if direction == 'sent' else (getattr(m.user, 'username', "Unknown") if m.user else "Unknown")
+                        timestamp = m.timestamp.strftime("%Y-%m-%d %H:%M:%S") if hasattr(m, "timestamp") else ""
+                        msgs.append({
+                            'direction': direction,
+                            'message': m.text,
+                            'sender': sender,
+                            'timestamp': timestamp
+                        })
+                    except Exception as msg_err:
+                        print("Instagram message skipped due to error:", msg_err)
+            except Exception as e:
+                print("Instagram messages fetch error:", e)
+        return jsonify(msgs)
+    # Always show dummy messages for Twitter
     return jsonify(MESSAGES.get(chat_id, []))
 
 @app.route('/api/send_message', methods=['POST'])
@@ -328,6 +367,7 @@ def api_send_message():
     message = data.get('message')
     platform = data.get('platform')
     chat_name = data.get('chat_name')
+    user_pk = data.get('user_pk')  # for Instagram
     if not chat_id or not message:
         return jsonify({'status': 'error', 'message': 'Missing data'}), 400
     if platform == 'telegram':
@@ -336,15 +376,28 @@ def api_send_message():
             return jsonify({'status': 'success'})
         except Exception as e:
             return jsonify({'status': 'error', 'message': str(e)})
+    elif platform == 'instagram':
+        try:
+            # Use user_pk for sending, not thread id
+            if not user_pk:
+                # fallback: get user_pk from thread
+                thread = instagram_client.direct_thread(chat_id)
+                other_user = next((u for u in thread.users if u.pk != instagram_client.user_id), None)
+                if not other_user:
+                    raise Exception("No recipient found for Instagram message.")
+                user_pk = other_user.pk
+            instagram_client.direct_send(message, [user_pk])
+            return jsonify({'status': 'success'})
+        except Exception as e:
+            print("Instagram send error:", e)
+            return jsonify({'status': 'error', 'message': str(e)})
     # Dummy logic for other platforms
-    # Add message to dummy data
     MESSAGES.setdefault(chat_id, []).append({
         'direction': 'sent',
         'message': message,
         'sender': 'You',
         'timestamp': '2024-06-10 12:00'
     })
-    # Update conversation msg_count
     for conv in CONVERSATIONS:
         if conv['chat_id'] == chat_id:
             conv['msg_count'] += 1
@@ -360,6 +413,24 @@ def ensure_telegram_login():
             print("Telegram not authorized. Starting login flow in main thread.")
             temp_client.start(phone=config.PHONE)
             print("Telegram login complete.")
+
+INSTAGRAM_USERNAME = "somyaxsharma128"
+INSTAGRAM_PASSWORD = "Hah687801"
+
+instagram_client = None
+
+def login_instagram():
+    global instagram_client
+    if instagram_client is None:
+        instagram_client = Client()
+        try:
+            instagram_client.login(INSTAGRAM_USERNAME, INSTAGRAM_PASSWORD)
+            print("Instagram client logged in.")
+        except Exception as e:
+            print("Instagram login failed:", e)
+            instagram_client = None
+
+login_instagram()
 
 if __name__ == '__main__':
     # Check for session file lock before starting

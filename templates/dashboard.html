@@ -261,6 +261,43 @@
             color: #4361ee;
             margin-top: 40px;
         }
+        #aiSuggestion {
+            margin: 0 24px 10px 24px;
+            color: #10b981;
+            font-size: 15px;
+            cursor: pointer;
+            display: none;
+            background: linear-gradient(90deg, #e0ffe0 0%, #f0fff0 100%);
+            border-radius: 10px;
+            padding: 12px 18px;
+            box-shadow: 0 2px 8px rgba(16,185,129,0.12);
+            transition: box-shadow 0.2s, background 0.2s, transform 0.2s;
+            position: relative;
+            font-weight: 600;
+            border-left: 4px solid #10b981;
+            animation: fadeInAI 0.7s cubic-bezier(.4,0,.2,1);
+        }
+        #aiSuggestion.ai-animate {
+            animation: fadeInAI 0.7s cubic-bezier(.4,0,.2,1);
+        }
+        #aiSuggestion:hover {
+            background: linear-gradient(90deg, #bbf7d0 0%, #e0ffe0 100%);
+            box-shadow: 0 4px 16px rgba(16,185,129,0.18);
+            transform: scale(1.03);
+        }
+        #aiSuggestion .ai-label {
+            font-size: 12px;
+            color: #059669;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            display: block;
+            text-transform: uppercase;
+        }
+        @keyframes fadeInAI {
+            from { opacity: 0; transform: translateY(20px);}
+            to { opacity: 1; transform: translateY(0);}
+        }
         @media (max-width: 900px) {
             .conversations { width: 220px; }
             .chat-header, .chat-input-area { padding: 12px 10px; }
@@ -307,9 +344,6 @@
             <div class="chat-input-area">
                 <input type="text" id="chatInput" class="chat-input" placeholder="Type a message..." autocomplete="off">
                 <button class="send-btn" id="sendBtn"><i class="fas fa-paper-plane"></i></button>
-                <button class="send-btn" id="suggestBtn" title="Suggest AI Reply" style="background: #10b981; margin-left: 6px;">
-                    <i class="fas fa-magic"></i>
-                </button>
             </div>
         </div>
     </div>
@@ -317,6 +351,7 @@
         let currentPlatform = 'telegram';
         let currentConversation = null;
         let allConversations = [];
+        let lastMessageCount = 0;
 
         function setPlatform(platform) {
             currentPlatform = platform;
@@ -406,6 +441,7 @@
                     messagesDiv.innerHTML = '';
                     if (!msgs || !msgs.length) {
                         messagesDiv.innerHTML = '<div class="no-messages">No messages yet.<br>Start the conversation!</div>';
+                        lastMessageCount = 0;
                         return;
                     }
                     msgs.forEach(msg => {
@@ -422,10 +458,42 @@
                         messagesDiv.appendChild(div);
                     });
                     messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+                    // --- AI suggestion logic ---
+                    // Only show suggestion for last received message
+                    const lastMsg = msgs[msgs.length - 1];
+                    if (lastMsg && lastMsg.direction === 'received') {
+                        fetchAISuggestion(currentPlatform, chat_id);
+                    } else {
+                        hideAISuggestion();
+                    }
+                    lastMessageCount = msgs.length;
                 })
                 .catch(() => {
                     messagesDiv.innerHTML = '<div class="no-messages">Failed to load messages.</div>';
                 });
+        }
+
+        function fetchAISuggestion(platform, chat_id) {
+            fetch('/api/suggest_reply', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    platform: platform,
+                    chat_id: chat_id
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success' && data.reply) {
+                    showAISuggestion(data.reply);
+                } else {
+                    hideAISuggestion();
+                }
+            })
+            .catch(() => {
+                hideAISuggestion();
+            });
         }
 
         function sendMessage() {
@@ -467,10 +535,15 @@
 
         function showAISuggestion(text) {
             const aiDiv = document.getElementById('aiSuggestion');
-            aiDiv.textContent = text || "Sorry, AI suggestion is currently unavailable.";
+            aiDiv.innerHTML = `<span class="ai-label"><i class="fas fa-magic"></i> AI Suggested</span>${text || "Sorry, AI suggestion is currently unavailable."}`;
             aiDiv.style.display = 'block';
+            aiDiv.classList.remove('ai-animate');
+            void aiDiv.offsetWidth; // trigger reflow for animation
+            aiDiv.classList.add('ai-animate');
             aiDiv.onclick = function() {
                 document.getElementById('chatInput').value = text;
+                aiDiv.style.background = "#bbf7d0";
+                setTimeout(() => aiDiv.style.background = "", 400);
             };
         }
 
@@ -478,43 +551,9 @@
             const aiDiv = document.getElementById('aiSuggestion');
             aiDiv.textContent = '';
             aiDiv.style.display = 'none';
+            aiDiv.classList.remove('ai-animate');
             aiDiv.onclick = null;
         }
-
-        document.getElementById('suggestBtn').onclick = function() {
-            hideAISuggestion();
-            if (!currentConversation) {
-                alert("Please select a conversation first.");
-                return;
-            }
-            const suggestBtn = document.getElementById('suggestBtn');
-            suggestBtn.disabled = true;
-            suggestBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-
-            fetch('/api/suggest_reply', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    platform: currentPlatform,
-                    chat_id: currentConversation.chat_id
-                })
-            })
-            .then(res => res.json())
-            .then(data => {
-                suggestBtn.disabled = false;
-                suggestBtn.innerHTML = '<i class="fas fa-magic"></i>';
-                if (data.status === 'success' && data.reply) {
-                    showAISuggestion(data.reply);
-                } else {
-                    showAISuggestion('No suggestion available. ' + (data.message || ''));
-                }
-            })
-            .catch(() => {
-                suggestBtn.disabled = false;
-                suggestBtn.innerHTML = '<i class="fas fa-magic"></i>';
-                showAISuggestion('Failed to get suggestion.');
-            });
-        };
 
         document.getElementById('sendBtn').onclick = sendMessage;
         document.getElementById('chatInput').onkeypress = function(e) {
