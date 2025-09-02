@@ -414,8 +414,8 @@ def ensure_telegram_login():
             temp_client.start(phone=config.PHONE)
             print("Telegram login complete.")
 
-INSTAGRAM_USERNAME = "somyaxsharma128"
-INSTAGRAM_PASSWORD = "Hah687801"
+INSTAGRAM_USERNAME = "unibox233"
+INSTAGRAM_PASSWORD = "YDVh 006 1"
 
 instagram_client = None
 
